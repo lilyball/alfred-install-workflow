@@ -12,10 +12,15 @@ set -e
 shopt -s nullglob
 
 function usage() {
-    echo "usage: install-workflow.sh [-hv] FILE [FILE...]"
+    echo "usage: install-workflow.sh [-hvd] FILE [FILE...]"
+    echo
+    echo " -h  Displays this help"
+    echo " -v  Shows more verbose information"
+    echo " -d  Shows debug information"
 }
 
 verbose=no
+debug=no
 while (( $# > 0 )); do
     case "$1" in
         -h|--help)
@@ -23,6 +28,10 @@ while (( $# > 0 )); do
             exit
             ;;
         -v|--verbose)
+            verbose=yes
+            ;;
+        -d|--debug)
+            debug=yes
             verbose=yes
             ;;
         --)
@@ -68,28 +77,28 @@ fi
 
 dest=
 for workflow in "$prefs"/workflows/user.workflow.*; do
-    [[ $verbose = yes ]] && echo "debug: checking $workflow"
+    [[ $debug = yes ]] && echo "debug: checking $workflow"
 
     workflowid=$(getBundleID "$workflow"/info.plist)
     if [[ "$bundleid" = "$workflowid" ]]; then
-        [[ $verbose = yes ]] && echo "debug: found match"
+        [[ $debug = yes ]] && echo "debug: found match"
         dest=$workflow
         break
     fi
 done
 if [[ -z "$dest" ]]; then
-    [[ $verbose = yes ]] && echo "no match found; installing new workflow"
+    [[ $verbose = yes ]] && echo "No existing installed workflow found; installing new workflow"
     dest=$prefs/workflows/user.workflow.$(uuidgen)
     mkdir "$dest"
 fi
 
-echo "Installing to $dest..."
+echo "Installing to ${dest//"$HOME"\//~/}"
 install_queue=(info.plist)
 if [[ -f icon.png ]]; then
     install_queue+=(icon.png)
 fi
 install_queue+=("$@")
-[[ $verbose = yes ]] && echo "install queue: [${install_queue[@]}]"
+[[ $debug = yes ]] && echo "debug: install queue: [${install_queue[@]}]"
 
 declare -a to_delete
 for f in "$dest"/{*,.[!.]*,.??*}; do
@@ -102,6 +111,15 @@ for f in "$dest"/{*,.[!.]*,.??*}; do
     # no match
     to_delete+=("$f")
 done
-[[ $verbose = yes ]] && echo "delete queue: [${to_delete[@]}]"
+[[ $debug = yes ]] && echo "debug: delete queue: [${to_delete[@]}]"
 
-echo TODO
+[[ -d "$dest" ]] || mkdir "$dest"
+for f in "${install_queue[@]}"; do
+    [[ $verbose = yes ]] && echo "Copying $f"
+    cp -a $([[ $debug = yes ]] && echo "-v") "${f%/}" "$dest"
+done
+
+for f in "${to_delete[@]}"; do
+    [[ $verbose = yes ]] && echo "Deleting $f"
+    rm -r $([[ $debug = yes ]] && echo "-v") "$f"
+done
