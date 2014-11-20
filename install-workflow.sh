@@ -121,5 +121,5 @@ done
 
 for f in "${to_delete[@]}"; do
     [[ $verbose = yes ]] && echo "Deleting $f"
-    rm -r $([[ $debug = yes ]] && echo "-v") "$f"
+    rm -rf $([[ $debug = yes ]] && echo "-v") "$f"
 done
