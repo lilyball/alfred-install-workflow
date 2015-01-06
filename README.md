@@ -22,3 +22,9 @@ install: script
     ./alfred-install-workflow/install-workflow.sh script
 .PHONY: install
 ```
+
+---
+
+When developing a workflow, you can use the flag `--update-plist` to
+copy the `info.plist` file from the installed workflow into the local
+folder.

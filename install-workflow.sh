@@ -12,19 +12,37 @@ set -e
 shopt -s nullglob
 
 function usage() {
-    echo "usage: install-workflow.sh [-hvd] FILE [FILE...]"
+    echo "Usage:"
+    echo "  install-workflow.sh [-hvd] [--] FILE [FILE...]"
+    echo "  install-workflow.sh --update-plist"
     echo
-    echo " -h  Displays this help"
-    echo " -v  Shows more verbose information"
-    echo " -d  Shows debug information"
+    echo "Options:"
+    echo "  -h --help       Displays this help"
+    echo "  -v --verbose    Shows more verbose information"
+    echo "  -d --debug      Shows debug information"
+    echo "  --update-plist  Update ./info.plist from the installed workflow"
+    [[ $1 != verbose ]] && return
+    echo
+    echo "When invoked with a list of files, the workflow is installed using those files"
+    echo "and ./info.plist (and optionally ./icon.png)."
+    echo
+    echo "When invoked with --update-plist, the installed workflow is located and the"
+    echo "info.plist is copied back into the development directory."
 }
 
-verbose=no
-debug=no
+verbose=
+debug=
 while (( $# > 0 )); do
     case "$1" in
+        -[^-]?*)
+            flag=${1:0:2}
+            rest=${1:2}
+            shift
+            set -- "$flag" -"$rest" "$@"
+            continue
+            ;;
         -h|--help)
-            usage
+            usage verbose
             exit
             ;;
         -v|--verbose)
@@ -34,11 +52,15 @@ while (( $# > 0 )); do
             debug=yes
             verbose=yes
             ;;
+        --update-plist)
+            update_plist=yes
+            ;;
         --)
             shift
             break
             ;;
         -*)
+            echo "error: unknown flag $1" >&2
             usage >&2
             exit 2
             ;;
@@ -49,9 +71,17 @@ while (( $# > 0 )); do
     shift
 done
 
-if (( $# == 0 )); then
-    usage >&2
-    exit 2
+if [[ -n $update_plist ]]; then
+    if (( $# > 0 )); then
+        echo "error: unexpected parameter $1" >&2
+        usage >&2
+        exit 2
+    fi
+else
+    if (( $# == 0 )); then
+        usage >&2
+        exit 2
+    fi
 fi
 
 function getBundleID() {
@@ -86,19 +116,39 @@ for workflow in "$prefs"/workflows/user.workflow.*; do
         break
     fi
 done
-if [[ -z "$dest" ]]; then
+if [[ -z $dest ]]; then
+    if [[ -n $update_plist ]]; then
+        echo "error: No existing installed workflow found" >&2
+        exit 1
+    fi
     [[ $verbose = yes ]] && echo "No existing installed workflow found; installing new workflow"
     dest=$prefs/workflows/user.workflow.$(uuidgen)
     mkdir "$dest"
 fi
+dest_pretty=${dest//"$HOME"\//\~/}
 
-echo "Installing to ${dest//"$HOME"\//~/}"
+if [[ -n $update_plist ]]; then
+    # copy the info.plist from the installed workflow to the local folder
+    plist_path=$dest/info.plist
+    if [[ ! -f "$plist_path" ]]; then
+        plist_path=$dest/Info.plist
+        if [[ ! -f "$plist_path" ]]; then
+            echo "error: can't find info.plist in $dest_pretty" >&2
+            exit 1
+        fi
+    fi
+    echo "Copying info.plist from $dest_pretty"
+    cp "$plist_path" ./info.plist
+    exit
+fi
+
+echo "Installing to $dest_pretty"
 install_queue=(info.plist)
 if [[ -f icon.png ]]; then
     install_queue+=(icon.png)
 fi
 install_queue+=("$@")
-[[ $debug = yes ]] && echo "debug: install queue: [${install_queue[@]}]"
+[[ $debug = yes ]] && echo "debug: install queue: [${install_queue[*]}]"
 
 declare -a to_delete
 for f in "$dest"/{*,.[!.]*,.??*}; do
@@ -111,15 +161,17 @@ for f in "$dest"/{*,.[!.]*,.??*}; do
     # no match
     to_delete+=("$f")
 done
-[[ $debug = yes ]] && echo "debug: delete queue: [${to_delete[@]}]"
+[[ $debug = yes ]] && echo "debug: delete queue: [${to_delete[*]}]"
 
 [[ -d "$dest" ]] || mkdir "$dest"
 for f in "${install_queue[@]}"; do
     [[ $verbose = yes ]] && echo "Copying $f"
+    # shellcheck disable=SC2046
     cp -a $([[ $debug = yes ]] && echo "-v") "${f%/}" "$dest"
 done
 
 for f in "${to_delete[@]}"; do
     [[ $verbose = yes ]] && echo "Deleting $f"
+    # shellcheck disable=SC2046
     rm -rf $([[ $debug = yes ]] && echo "-v") "$f"
 done
