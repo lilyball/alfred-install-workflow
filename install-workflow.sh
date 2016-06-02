@@ -96,7 +96,7 @@ function getBundleID() {
 
 bundleid=$(getBundleID info.plist)
 
-syncfolder=$(defaults read com.runningwithcrayons.Alfred-Preferences syncfolder)
+syncfolder=$(defaults read com.runningwithcrayons.Alfred-Preferences-3 syncfolder)
 syncfolder=${syncfolder/#~\//"$HOME"/}
 prefs=${syncfolder%/}/Alfred.alfredpreferences
 
